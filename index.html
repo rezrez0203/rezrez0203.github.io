@@ -5,15 +5,14 @@
   <title>バナナシューティングゲーム</title>
   <style>
     * {
-      user-select: none;
       margin: 0;
       padding: 0;
+      user-select: none;
     }
+
     body {
       background: #fff;
       overflow: hidden;
-      height: 100vh;
-      position: relative;
       font-family: sans-serif;
     }
 
@@ -21,8 +20,8 @@
       position: relative;
       width: 100vw;
       height: 100vh;
-      overflow: hidden;
       background: #eef;
+      overflow: hidden;
     }
 
     #player {
@@ -31,12 +30,11 @@
       left: 50%;
       width: 60px;
       height: 60px;
-      margin-left: 0;
-      background-image: url('https://cdn-icons-png.flaticon.com/512/415/415716.png'); 
+      background-image: url('https://cdn-icons-png.flaticon.com/512/590/590685.png'); /* バナナ */
       background-size: contain;
       background-repeat: no-repeat;
       background-position: center;
-      cursor: pointer;
+      transform: translateX(-50%);
       z-index: 10;
     }
 
@@ -53,7 +51,7 @@
       position: absolute;
       width: 50px;
       height: 50px;
-      background-image: url('https://cdn-icons-png.flaticon.com/512/415/415733.png'); 
+      background-image: url('https://cdn-icons-png.flaticon.com/512/590/590684.png'); /* りんご */
       background-size: contain;
       background-repeat: no-repeat;
       z-index: 15;
@@ -67,17 +65,11 @@
       border-radius: 10px;
       font-weight: bold;
       font-size: 24px;
-      user-select: none;
       z-index: 30;
     }
 
-    #score {
-      left: 10px;
-    }
-
-    #timer {
-      right: 10px;
-    }
+    #score { left: 10px; }
+    #timer { right: 10px; }
 
     #messageContainer {
       position: fixed;
@@ -86,7 +78,6 @@
       transform: translate(-50%, -50%);
       text-align: center;
       z-index: 50;
-      user-select: none;
       display: none;
     }
 
@@ -105,7 +96,6 @@
       background-color: #28a745;
       color: white;
       cursor: pointer;
-      transition: background-color 0.3s ease;
     }
 
     #restartBtn:hover {
@@ -127,206 +117,165 @@
   </div>
 
   <script>
-    window.onload = () => {
-      const gameArea = document.getElementById('gameArea');
-      const player = document.getElementById('player');
-      const scoreDisplay = document.getElementById('score');
-      const timerDisplay = document.getElementById('timer');
-      const messageContainer = document.getElementById('messageContainer');
-      const restartBtn = document.getElementById('restartBtn');
+    const gameArea = document.getElementById('gameArea');
+    const player = document.getElementById('player');
+    const scoreDisplay = document.getElementById('score');
+    const timerDisplay = document.getElementById('timer');
+    const messageContainer = document.getElementById('messageContainer');
+    const restartBtn = document.getElementById('restartBtn');
 
-      let score = 0;
-      let timeLeft = 30;
-      let gameRunning = true;
+    let bullets = [];
+    let enemies = [];
+    let score = 0;
+    let timeLeft = 30;
+    let gameRunning = true;
 
-      let bullets = [];
-      let enemies = [];
+    function movePlayer(x) {
+      const gameWidth = window.innerWidth;
+      const playerWidth = player.offsetWidth;
+      const newX = Math.min(Math.max(0, x - playerWidth / 2), gameWidth - playerWidth);
+      player.style.left = newX + 'px';
+    }
 
-      function getGameSize() {
-        return { width: window.innerWidth, height: window.innerHeight };
+    window.addEventListener('mousemove', (e) => {
+      if (gameRunning) movePlayer(e.clientX);
+    });
+
+    window.addEventListener('touchmove', (e) => {
+      if (gameRunning) movePlayer(e.touches[0].clientX);
+    });
+
+    function createBullet() {
+      const bullet = document.createElement('div');
+      bullet.className = 'bullet';
+      const playerRect = player.getBoundingClientRect();
+      const gameRect = gameArea.getBoundingClientRect();
+      bullet.style.left = (playerRect.left + playerRect.width / 2 - gameRect.left - 4) + 'px';
+      bullet.style.top = (playerRect.top - gameRect.top - 20) + 'px';
+      gameArea.appendChild(bullet);
+      bullets.push(bullet);
+    }
+
+    function createEnemy() {
+      const enemy = document.createElement('div');
+      enemy.className = 'enemy';
+      const x = Math.random() * (window.innerWidth - 50);
+      enemy.style.left = x + 'px';
+      enemy.style.top = '-50px';
+      gameArea.appendChild(enemy);
+      enemies.push({ element: enemy, speed: 2 + Math.random() * 3 });
+    }
+
+    function isCollision(a, b) {
+      const rectA = a.getBoundingClientRect();
+      const rectB = b.getBoundingClientRect();
+      return !(
+        rectA.right < rectB.left ||
+        rectA.left > rectB.right ||
+        rectA.bottom < rectB.top ||
+        rectA.top > rectB.bottom
+      );
+    }
+
+    function updateScore() {
+      scoreDisplay.textContent = '得点: ' + score;
+    }
+
+    function updateTimer() {
+      timerDisplay.textContent = '残り時間: ' + timeLeft + '秒';
+    }
+
+    function endGame() {
+      gameRunning = false;
+      messageContainer.style.display = 'block';
+    }
+
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+
+      if (!gameLoop.lastTime || timestamp - gameLoop.lastTime > 200) {
+        createBullet();
+        gameLoop.lastTime = timestamp;
       }
 
-      function movePlayer(x) {
-        const { width: gameWidth } = getGameSize();
-        const playerWidth = player.offsetWidth;
-        const clampedX = Math.min(Math.max(x, 0), gameWidth - playerWidth);
-        player.style.left = clampedX + "px";
-      }
-
-      function onPointerMove(e) {
-        let clientX = e.clientX || (e.touches && e.touches[0].clientX);
-        if (clientX !== undefined) {
-          movePlayer(clientX - player.offsetWidth / 2);
+      bullets = bullets.filter(bullet => {
+        let top = parseFloat(bullet.style.top);
+        top -= 8;
+        if (top < -20) {
+          bullet.remove();
+          return false;
         }
-      }
-      window.addEventListener("mousemove", onPointerMove);
-      window.addEventListener("touchmove", onPointerMove);
-
-      const bulletInterval = 200;
-      let lastBulletTime = 0;
-
-      function createBullet() {
-        const bullet = document.createElement('div');
-        bullet.className = 'bullet';
-
-        const playerRect = player.getBoundingClientRect();
-        const gameAreaRect = gameArea.getBoundingClientRect();
-
-        const bulletLeft = playerRect.left - gameAreaRect.left + playerRect.width / 2 - 4; // 弾幅8/2=4px
-        const bulletTop = playerRect.top - gameAreaRect.top - 20;
-
-        bullet.style.left = bulletLeft + 'px';
-        bullet.style.top = bulletTop + 'px';
-
-        gameArea.appendChild(bullet);
-        bullets.push(bullet);
-      }
-
-      function createEnemy() {
-        const enemy = document.createElement('div');
-        enemy.className = 'enemy';
-        const { width: gameWidth } = getGameSize();
-        const x = Math.random() * (gameWidth - 50);
-        enemy.style.left = x + 'px';
-        enemy.style.top = '-50px';
-        gameArea.appendChild(enemy);
-        const speed = 2 + Math.random() * 3; 
-        enemies.push({ element: enemy, speed });
-      }
-
-      function isCollision(a, b) {
-        const rectA = a.getBoundingClientRect();
-        const rectB = b.getBoundingClientRect();
-
-        return !(
-          rectA.right < rectB.left ||
-          rectA.left > rectB.right ||
-          rectA.bottom < rectB.top ||
-          rectA.top > rectB.bottom
-        );
-      }
-
-      function updateScore() {
-        scoreDisplay.textContent = `得点: ${score}`;
-      }
-
-      function updateTimer() {
-        timerDisplay.textContent = `残り時間: ${timeLeft}秒`;
-      }
-
-      function endGame() {
-        gameRunning = false;
-        messageContainer.style.display = "block";
-      }
-
-      function gameLoop(timestamp) {
-        if (!gameRunning) return;
-
-        if (!lastBulletTime || timestamp - lastBulletTime > bulletInterval) {
-          createBullet();
-          lastBulletTime = timestamp;
-        }
-
-        bullets.forEach((bullet, i) => {
-          let top = parseFloat(bullet.style.top);
-          top -= 8;
-          if (top < -20) {
-            bullet.remove();
-            bullets.splice(i, 1);
-          } else {
-            bullet.style.top = top + 'px';
-          }
-        });
-
-        enemies.forEach(({ element, speed }, i) => {
-          let top = parseFloat(element.style.top);
-          top += speed;
-          const { height: gameHeight } = getGameSize();
-          if (top > gameHeight) {
-            element.remove();
-            enemies.splice(i, 1);
-          } else {
-            element.style.top = top + 'px';
-          }
-        });
-
-        bullets.forEach((bullet, bi) => {
-          enemies.forEach(({ element: enemy }, ei) => {
-            if (isCollision(bullet, enemy)) {
-              bullet.remove();
-              enemy.remove();
-              bullets.splice(bi, 1);
-              enemies.splice(ei, 1);
-              score++;
-              updateScore();
-            }
-          });
-        });
-
-        requestAnimationFrame(gameLoop);
-      }
-
-      let enemyTimer;
-      function spawnEnemyRandom() {
-        if (!gameRunning) return;
-        createEnemy();
-        const nextTime = 500 + Math.random() * 1000; // 0.5〜1.5秒
-        enemyTimer = setTimeout(spawnEnemyRandom, nextTime);
-      }
-
-      let countdownTimeout;
-      function countdown() {
-        if (timeLeft <= 0) {
-          endGame();
-          clearTimeout(enemyTimer);
-          clearTimeout(countdownTimeout);
-          return;
-        }
-        updateTimer();
-        timeLeft--;
-        countdownTimeout = setTimeout(countdown, 1000);
-      }
-
-      restartBtn.addEventListener('click', () => {
-        bullets.forEach(b => b.remove());
-        enemies.forEach(({ element }) => element.remove());
-        bullets = [];
-        enemies = [];
-
-        score = 0;
-        timeLeft = 30;
-        gameRunning = true;
-        messageContainer.style.display = 'none';
-        updateScore();
-        updateTimer();
-
-        const { width: gameWidth } = getGameSize();
-        movePlayer(gameWidth / 2 - player.offsetWidth / 2);
-
-        clearTimeout(enemyTimer);
-        spawnEnemyRandom();
-        countdown();
-        requestAnimationFrame(gameLoop);
+        bullet.style.top = top + 'px';
+        return true;
       });
 
+      enemies = enemies.filter(({ element, speed }) => {
+        let top = parseFloat(element.style.top);
+        top += speed;
+        if (top > window.innerHeight) {
+          element.remove();
+          return false;
+        }
+        element.style.top = top + 'px';
+        return true;
+      });
+
+      bullets.forEach((bullet, bi) => {
+        enemies.forEach(({ element }, ei) => {
+          if (isCollision(bullet, element)) {
+            bullet.remove();
+            element.remove();
+            bullets.splice(bi, 1);
+            enemies.splice(ei, 1);
+            score++;
+            updateScore();
+          }
+        });
+      });
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function spawnEnemies() {
+      if (!gameRunning) return;
+      createEnemy();
+      setTimeout(spawnEnemies, 500 + Math.random() * 1000);
+    }
+
+    function countdown() {
+      if (!gameRunning) return;
+      if (timeLeft <= 0) {
+        endGame();
+        return;
+      }
+      updateTimer();
+      timeLeft--;
+      setTimeout(countdown, 1000);
+    }
+
+    restartBtn.addEventListener('click', () => {
+      bullets.forEach(b => b.remove());
+      enemies.forEach(({ element }) => element.remove());
+      bullets = [];
+      enemies = [];
+      score = 0;
+      timeLeft = 30;
+      gameRunning = true;
       updateScore();
       updateTimer();
-      const { width: gameWidth } = getGameSize();
-      movePlayer(gameWidth / 2 - player.offsetWidth / 2);
-      spawnEnemyRandom();
+      messageContainer.style.display = 'none';
+      spawnEnemies();
       countdown();
       requestAnimationFrame(gameLoop);
+    });
 
-      window.addEventListener('resize', () => {
-        if (!gameRunning) return;
-        const { width: gameWidth } = getGameSize();
-
-        const currentLeft = parseFloat(player.style.left);
-        if (currentLeft + player.offsetWidth > gameWidth) {
-          movePlayer(gameWidth - player.offsetWidth);
-        }
-      });
-    };
+    // 初期開始
+    movePlayer(window.innerWidth / 2);
+    updateScore();
+    updateTimer();
+    spawnEnemies();
+    countdown();
+    requestAnimationFrame(gameLoop);
   </script>
 </body>
 </html>
